@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Slider — Wits Digital Forensics Roadmap</title>
+<style>
+* { box-sizing: border-box; }
+
+:root {
+    --bg: #fdf1f5;
+    --bg2: #f6d3e0;
+    --bg3: #fbe4ec;
+    --glow-a: rgba(255,200,222,.55);
+    --glow-b: rgba(255,180,205,.32);
+    --text: #3d2b32;
+    --sub: #7a6169;
+    --panel-bg: rgba(255, 248, 250, 0.95);
+    --border: rgba(61,43,50,.14);
+    --tag-bg: #f0c3d3;
+    --tag-text: #5b2e3c;
+    --btn-bg: rgba(61,43,50,.05);
+    --card-1: #f6b8d2; --card-2: #ef94bb; --card-3: #e46fa0; --card-4: #d64f89; --card-5: #b23368; --card-6: #8c2350; --card-7: #611538;
+    --card-icon: #ffffff;
+    --card-outline: rgba(178,51,104,.35);
+    --card-outline-hover: rgba(178,51,104,.65);
+    --focus-ring: #d64f89;
+}
+
+html, body {
+    margin: 0; width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+    transition: background .6s ease, color .6s ease;
+}
+body { user-select: none; }
+
+button:focus-visible, 
+.card:focus-visible, 
+.item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+.stage {
+    position: relative; width: 100vw; height: 100vh; overflow: hidden;
+    background:
+        radial-gradient(circle at 16% 20%, var(--glow-a), transparent 46%),
+        radial-gradient(circle at 84% 80%, var(--glow-b), transparent 52%),
+        linear-gradient(160deg, var(--bg), var(--bg3) 55%, var(--bg2));
+    transition: background .6s ease;
+}
+
+#bgCanvas {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
+}
+
+.top-left-group {
+    position: absolute; top: 28px; left: 34px; z-index: 100;
+    display: flex; align-items: center; gap: 16px;
+}
+.top-title { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.3px; }
+.track-badge {
+    display: none; padding: 5px 12px; border-radius: 12px;
+    background: var(--tag-bg); color: var(--tag-text);
+    font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.track-badge.visible { display: inline-flex; align-items: center; gap: 6px; }
+
+.top-controls {
+    position: absolute; z-index: 100; left: 34px; bottom: 30px;
+    display: flex; align-items: center; gap: 16px;
+}
+.top-progress { font-size: 11px; letter-spacing: .5px; color: var(--sub); font-weight: 700; }
+.reset-btn {
+    background: transparent; border: none; padding: 0;
+    font-size: 11px; letter-spacing: .5px; color: var(--sub);
+    font-weight: 700; cursor: pointer; text-decoration: underline;
+    opacity: .75; transition: opacity .2s ease;
+}
+.reset-btn:hover { opacity: 1; }
+
+.theme-picker { position: absolute; top: 28px; right: 34px; z-index: 100; display: flex; gap: 8px; align-items: center; }
+.theme-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sub); margin-right: 4px; }
+.swatch {
+    width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
+    background: var(--sw); cursor: pointer; padding: 0;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.15), 0 1px 3px rgba(0,0,0,.2);
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1), border-color .3s ease, box-shadow .3s ease;
+}
+.swatch.active {
+    border-color: var(--text);
+    transform: scale(1.2);
+    box-shadow: 0 0 0 2px var(--panel-bg), 0 0 8px rgba(0,0,0,.25);
+}
+
+.belt-wrapper { position: absolute; left: 0; top: 50%; width: 100%; height: 430px; transform: translateY(-50%) scale(1); transition: transform .7s cubic-bezier(.16,1,.3,1), filter .7s ease; z-index: 10; }
+.belt-wrapper.open { transform: translateY(-50%) scale(.92); filter: saturate(.85); }
+.belt { position: absolute; left: 0; top: 0; width: 100%; height: 100%; perspective: 1400px; perspective-origin: 50% 45%; cursor: grab; touch-action: none; }
+.belt.dragging { cursor: grabbing; }
+
+.card {
+    --width: 180px; 
+    --height: 250px;
+    position: absolute; left: 50%; top: 50%;
+    width: var(--width); height: var(--height);
+    margin-left: calc(var(--width) / -2); margin-top: calc(var(--height) / -2);
+    border-radius: 16px; overflow: hidden;
+    border: 1.5px solid var(--card-outline);
+    background: #222;
+    box-shadow: 0 24px 52px rgba(40,20,30,.25), inset 0 0 0 1px rgba(255,255,255,.08);
+    transform-origin: center; cursor: pointer;
+    transition: border-color .35s cubic-bezier(.4,0,.2,1), box-shadow .35s cubic-bezier(.4,0,.2,1);
+    will-change: transform, opacity, filter;
+}
+.card:hover { border-color: var(--card-outline-hover); box-shadow: 0 32px 64px rgba(40,20,30,.35), inset 0 0 0 1px rgba(255,255,255,.12); }
+.card-art { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--card-icon); transition: transform .8s cubic-bezier(.16,1,.3,1), filter .4s ease, color .5s ease; }
+.card-art svg { width: 44px; height: 44px; opacity: 0.9; filter: drop-shadow(0 2px 4px rgba(0,0,0,.15)); }
+.card:hover .card-art { transform: scale(1.06); }
+.card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 25%, rgba(0,0,0,.18) 45%, rgba(0,0,0,.94) 100%); }
+.card-content { position: absolute; z-index: 5; left: 16px; right: 16px; bottom: 16px; }
+.card-year { margin-bottom: 6px; font-size: 11px; letter-spacing: 1.5px; color: rgba(255,255,255,.7); font-weight: 600; }
+.card-title { font-family: Georgia, "Times New Roman", serif; font-size: 19px; line-height: 1.15; color: white; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+
+.art-1 { background: var(--card-1); }
+.art-2 { background: var(--card-2); }
+.art-3 { background: var(--card-3); }
+.art-4 { background: var(--card-4); }
+.art-5 { background: var(--card-5); }
+.art-6 { background: var(--card-6); }
+.art-7 { background: var(--card-7); }
+
+.lock-badge { position: absolute; inset: 0; z-index: 7; display: none; align-items: center; justify-content: center; color: #fff; background: rgba(10,8,10,.5); backdrop-filter: blur(2px); transition: opacity .3s ease; }
+.card.locked .lock-badge { display: flex; }
+.card.locked .card-art { filter: grayscale(1) brightness(.5); }
+
+.backdrop {
+    position: fixed; inset: 0; z-index: 70;
+    background: rgba(20,10,15,.45);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .5s cubic-bezier(.16,1,.3,1);
+}
+.backdrop.open { opacity: 1; pointer-events: auto; }
+
+.info-panel {
+    position: fixed; z-index: 90; top: 50%; left: 50%;
+    width: min(1000px, 94vw); 
+    max-height: 84vh;
+    padding: 0; 
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    box-shadow: 0 50px 100px rgba(30,15,20,.35), inset 0 1px 0 rgba(255,255,255,.6);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    transform: translate(-50%, -48%) scale(.92);
+    opacity: 0; pointer-events: none;
+    transition: transform .55s cubic-bezier(.16,1,.3,1), opacity .4s ease, background .6s ease, border-color .6s ease;
+    overflow: hidden; 
+}
+.info-panel.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+
+.close {
+    position: absolute; top: 24px; right: 24px;
+    width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); 
+    background: var(--btn-bg); color: var(--text); font-size: 20px; cursor: pointer; z-index: 20; 
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    transition: background 0.2s, opacity 0.3s ease, transform 0.3s ease;
+}
+.close:hover { background: var(--border); }
+.close.hidden { opacity: 0; pointer-events: none; transform: translateY(-10px); }
+
+#panelContent {
+    width: 100%; max-height: 84vh;
+    padding: 72px 56px 56px; overflow-y: auto;
+    scrollbar-width: none; -ms-overflow-style: none; 
+}
+#panelContent::-webkit-scrollbar { display: none; } 
+
+.panel-meta { font-size: 13px; color: var(--sub); margin-bottom: 8px; font-weight: 500; }
+.panel-year { margin-bottom: 18px; font-size: 12px; letter-spacing: 3.5px; color: var(--sub); font-weight: 600; text-transform: uppercase; }
+.panel-title { margin: 0 0 18px; font-family: Georgia, "Times New Roman", serif; font-size: 44px; line-height: 1.1; font-weight: 400; }
+.panel-subtitle { margin-bottom: 32px; font-size: 17px; line-height: 1.7; color: var(--sub); }
+
+.progress-row { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
+.progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--tag-text); border-radius: 3px; transition: width .4s ease; }
+.progress-label { font-size: 12px; color: var(--sub); white-space: nowrap; font-weight: 600; }
+
+.panel-section { margin-bottom: 42px; }
+.panel-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.item { display: flex; align-items: flex-start; gap: 16px; padding: 14px 12px; cursor: pointer; border: 1px solid transparent; border-radius: 10px; transition: background .2s ease, border-color .2s ease; }
+.item:hover { background: var(--btn-bg); border-color: var(--border); }
+
+.check { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 2px; border-radius: 6px; border: 1.5px solid var(--sub); display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; }
+.item.checked .check { background: var(--tag-text); border-color: var(--tag-text); }
+.item.checked .check::after { content: "✓"; color: #fff; font-size: 12px; line-height: 1; }
+
+.item-text { font-size: 15px; line-height: 1.65; color: var(--text); }
+.item.checked .item-text { color: var(--sub); text-decoration: line-through; opacity: 0.8; }
+
+.stage-action { margin-top: 16px; }
+.complete-btn { padding: 15px 26px; border-radius: 12px; border: none; background: var(--text); color: var(--panel-bg); font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity .2s ease, transform .2s ease; }
+.complete-btn:hover { opacity: .9; transform: translateY(-1px); }
+.complete-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.completed-badge { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--tag-text); }
+
+.choice-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
+.choice-card { background: var(--btn-bg); border: 2px solid var(--border); border-radius: 14px; padding: 22px; cursor: pointer; transition: all 0.25s ease; text-align: left; }
+.choice-card:hover { border-color: var(--focus-ring); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+.choice-card.selected { border-color: var(--focus-ring); background: var(--tag-bg); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.choice-card h4 { margin: 0 0 8px; font-size: 16px; color: var(--text); font-family: Georgia, serif; }
+.choice-card p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--sub); }
+
+.locked-view { text-align: center; padding: 50px 10px 20px; }
+.locked-view .lock-icon { color: var(--sub); margin-bottom: 22px; display: flex; justify-content: center; }
+.locked-view .lock-icon svg { width: 44px; height: 44px; }
+.locked-view h2 { font-family: Georgia, serif; font-weight: 400; font-size: 34px; margin: 0 0 16px; }
+.locked-view p { color: var(--sub); font-size: 16px; line-height: 1.7; margin: 0 0 32px; }
+.locked-view button { padding: 14px 26px; border-radius: 12px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s; }
+.locked-view button:hover { background: var(--border); }
+
+.panel-badge { display: inline-block; padding: 6px 12px; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; font-weight: 700; color: var(--sub); background: var(--btn-bg); }
+.drag-hint { position: absolute; z-index: 100; left: 50%; bottom: 28px; transform: translateX(-50%); font-size: 9px; letter-spacing: 4px; color: var(--sub); animation: slowFloat 3.2s ease-in-out infinite; pointer-events: none; }
+@keyframes slowFloat { 0%, 100% { transform: translate(-50%, 0); opacity: .5; } 50% { transform: translate(-50%, -7px); opacity: 1; } }
+
+@media(min-width: 800px) {
+    .choice-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+
+    <canvas id="bgCanvas"></canvas>
+
+    <div class="top-left-group">
+        <div class="top-title">RoadMap</div>
+        <div class="track-badge" id="trackBadge"></div>
+    </div>
+
+    <div class="top-controls">
+        <div class="top-progress" id="topProgress" aria-live="polite"></div>
+        <button class="reset-btn" id="resetBtn" aria-label="Reset all roadmap progress">Reset Progress</button>
+    </div>
+
+    <div class="theme-picker" id="themePicker" role="radiogroup" aria-label="Theme selector">
+        <span class="theme-label">Theme</span>
+        <button class="swatch" data-theme="white" style="--sw:#ffffff" role="radio" aria-checked="false" aria-label="White Theme"></button>
+        <button class="swatch" data-theme="black" style="--sw:#111111" role="radio" aria-checked="false" aria-label="Black Theme"></button>
+        <button class="swatch" data-theme="pink" style="--sw:#e46fa0" role="radio" aria-checked="false" aria-label="Pink Theme"></button>
+    </div>
+
+    <div class="belt-wrapper" id="beltWrapper">
+        <div class="belt" id="belt" role="region" aria-label="Roadmap stages slider"></div>
+    </div>
+
+    <div class="drag-hint">DRAG TO SCROLL</div>
+    <div class="backdrop" id="backdrop"></div>
+
+    <aside class="info-panel" id="infoPanel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+        <button class="close" id="closeButton" aria-label="Close details panel">×</button>
+        <div id="panelContent"></div>
+    </aside>
+
+</div>
+
+<script>
+const canvas = document.getElementById("bgCanvas");
+const ctx = canvas.getContext("2d");
+let particles = [];
+const particleCount = 45;
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function initParticles() {
+    particles = [];
+    for (let i = 0; i < particleCount; i++) {
+        particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 7 + 4,
+            speedX: (Math.random() - 0.4) * 0.5,
+            speedY: Math.random() * 0.7 + 0.4,
+            angle: Math.random() * Math.PI * 2,
+            spin: (Math.random() - 0.5) * 0.04,
+            wobble: Math.random() * Math.PI,
+            wobbleSpeed: Math.random() * 0.05 + 0.02,
+            opacity: Math.random() * 0.6 + 0.25
+        });
+    }
+}
+initParticles();
+
+function drawCherryBlossomLeaf(x, y, size, angle, opacity, isPink, isDark) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.scale(size, size * 0.6);
+    
+    ctx.beginPath();
+    ctx.moveTo(0, -1);
+    ctx.bezierCurveTo(0.8, -1.2, 1.2, -0.2, 0.7, 0.6);
+    ctx.bezierCurveTo(0.3, 1.2, 0, 1.3, 0, 1);
+    ctx.bezierCurveTo(0, 1.3, -0.3, 1.2, -0.7, 0.6);
+    ctx.bezierCurveTo(-1.2, -0.2, -0.8, -1.2, 0, -1);
+    ctx.closePath();
+
+    if (isPink) {
+        ctx.fillStyle = `rgba(255, 182, 203, ${opacity})`;
+        ctx.strokeStyle = `rgba(230, 110, 150, ${opacity * 0.7})`;
+    } else if (isDark) {
+        ctx.fillStyle = `rgba(240, 240, 240, ${opacity * 0.5})`;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.3})`;
+    } else {
+        ctx.fillStyle = `rgba(130, 130, 130, ${opacity * 0.35})`;
+        ctx.strokeStyle = `rgba(80, 80, 80, ${opacity * 0.3})`;
+    }
+    ctx.lineWidth = 0.2;
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const isDark = currentThemeName === 'black';
+    const isPink = currentThemeName === 'pink';
+    
+    particles.forEach(p => {
+        p.wobble += p.wobbleSpeed;
+        p.x += p.speedX + Math.sin(p.wobble) * 0.6;
+        p.y += p.speedY;
+        p.angle += p.spin;
+
+        if (p.y > canvas.height + 30) {
+            p.y = -30;
+            p.x = Math.random() * canvas.width;
+        }
+        if (p.x > canvas.width + 30) p.x = -30;
+        if (p.x < -30) p.x = canvas.width + 30;
+
+        drawCherryBlossomLeaf(p.x, p.y, p.size, p.angle, p.opacity, isPink, isDark);
+    });
+    requestAnimationFrame(drawParticles);
+}
+requestAnimationFrame(drawParticles);
+
+let currentThemeName = "pink";
+const themes = {
+    white: {
+        bg:"#ffffff", bg3:"#f8f8f8", bg2:"#eeeeee",
+        glowA:"rgba(0,0,0,.035)", glowB:"rgba(0,0,0,.02)",
+        text:"#141414", sub:"#6b6b6b", panel:"rgba(255,255,255,0.95)",
+        border:"rgba(0,0,0,.13)", tagBg:"rgba(0,0,0,.08)", tagText:"#141414", btn:"rgba(0,0,0,.045)",
+        cards: ["#f2f2f2","#e6e6e6","#d9d9d9","#cccccc","#bfbfbf","#a8a8a8","#8f8f8f"],
+        cardIcon: "#141414", cardOutline: "rgba(0,0,0,.22)", cardOutlineHover: "rgba(0,0,0,.45)", focusRing: "#141414"
+    },
+    black: {
+        bg:"#141414", bg3:"#0d0d0d", bg2:"#000000",
+        glowA:"rgba(255,255,255,.06)", glowB:"rgba(255,255,255,.035)",
+        text:"#f2f2f2", sub:"#9a9a9a", panel:"rgba(16,16,16,0.95)",
+        border:"rgba(255,255,255,.13)", tagBg:"rgba(255,255,255,.12)", tagText:"#f2f2f2", btn:"rgba(255,255,255,.05)",
+        cards: ["#565656","#4a4a4a","#3e3e3e","#333333","#282828","#1d1d1d","#101010"],
+        cardIcon: "#ffffff", cardOutline: "rgba(255,255,255,.2)", cardOutlineHover: "rgba(255,255,255,.45)", focusRing: "#f2f2f2"
+    },
+    pink: {
+        bg:"#fdf1f5", bg3:"#fbe4ec", bg2:"#f6d3e0",
+        glowA:"rgba(255,200,222,.55)", glowB:"rgba(255,180,205,.32)",
+        text:"#3d2b32", sub:"#7a6169", panel:"rgba(255,248,250,0.95)",
+        border:"rgba(61,43,50,.14)", tagBg:"#f0c3d3", tagText:"#5b2e3c", btn:"rgba(61,43,50,.05)",
+        cards: ["#f6b8d2","#ef94bb","#e46fa0","#d64f89","#b23368","#8c2350","#611538"],
+        cardIcon: "#ffffff", cardOutline: "rgba(178,51,104,.35)", cardOutlineHover: "rgba(178,51,104,.65)", focusRing: "#d64f89"
+    }
+};
+
+function applyTheme(name) {
+    currentThemeName = name;
+    const t = themes[name] || themes.pink;
+    const r = document.documentElement.style;
+    r.setProperty("--bg", t.bg); r.setProperty("--bg2", t.bg2); r.setProperty("--bg3", t.bg3);
+    r.setProperty("--glow-a", t.glowA); r.setProperty("--glow-b", t.glowB);
+    r.setProperty("--text", t.text); r.setProperty("--sub", t.sub);
+    r.setProperty("--panel-bg", t.panel); r.setProperty("--border", t.border);
+    r.setProperty("--tag-bg", t.tagBg); r.setProperty("--tag-text", t.tagText);
+    r.setProperty("--btn-bg", t.btn); r.setProperty("--focus-ring", t.focusRing);
+    t.cards.forEach((c, i) => r.setProperty(`--card-${i + 1}`, c));
+    r.setProperty("--card-icon", t.cardIcon);
+    r.setProperty("--card-outline", t.cardOutline);
+    r.setProperty("--card-outline-hover", t.cardOutlineHover);
+    document.querySelectorAll(".swatch").forEach(b => {
+        const active = b.dataset.theme === name;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-checked", active ? "true" : "false");
+    });
+    try { localStorage.setItem("roadmap-theme", name); } catch (e) {}
+}
+
+document.getElementById("themePicker").addEventListener("click", e => {
+    const b = e.target.closest(".swatch");
+    if (!b) return;
+    applyTheme(b.dataset.theme);
+});
+try { currentThemeName = localStorage.getItem("roadmap-theme") || "pink"; } catch (e) {}
+applyTheme(currentThemeName);
+
+const LOCK_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`;
+
+let checks = {};
+try { checks = JSON.parse(localStorage.getItem("roadmap-checks") || "{}"); } catch (e) { checks = {}; }
+let completed = [];
+try { completed = JSON.parse(localStorage.getItem("roadmap-completed") || "[]"); } catch (e) { completed = []; }
+let chosenPath = localStorage.getItem("roadmap-chosen-path") || null;
+
+function saveChecks() { try { localStorage.setItem("roadmap-checks", JSON.stringify(checks)); } catch (e) {} }
+function saveCompleted() { try { localStorage.setItem("roadmap-completed", JSON.stringify(completed)); } catch (e) {} }
+function isUnlocked(i) { return i === 0 || !!completed[i - 1]; }
+
+function updateTrackBadge() {
+    const badge = document.getElementById("trackBadge");
+    if (chosenPath) {
+        const labels = { bsc: 'Science Track', ba: 'Interdisciplinary BA Track', com: 'Governance Track' };
+        badge.textContent = `Track: ${labels[chosenPath] || chosenPath}`;
+        badge.classList.add("visible");
+    } else {
+        badge.classList.remove("visible");
+    }
+}
+updateTrackBadge();
+
+function triggerCelebration() {
+    const pop = document.createElement("div");
+    pop.style.cssText = "position:fixed; inset:0; z-index:9999; pointer-events:none; display:flex; align-items:center; justify-content:center;";
+    pop.innerHTML = `<div style="background:var(--panel-bg); border:2px solid var(--border); padding:30px 50px; border-radius:20px; box-shadow:0 20px 50px rgba(0,0,0,.3); text-align:center; backdrop-filter:blur(20px);">
+        <h2 style="margin:0 0 10px; font-family:Georgia,serif; font-size:28px; color:var(--text);">🎉 Roadmap Mastered!</h2>
+        <p style="margin:0; font-size:15px; color:var(--sub);">You have successfully reviewed all Wits digital forensics milestones. Ready for the professional arena.</p>
+    </div>`;
+    document.body.appendChild(pop);
+    setTimeout(() => pop.remove(), 4500);
+}
+
+function resetProgress() {
+    if (confirm("Are you sure you want to reset all your roadmap progress?")) {
+        localStorage.removeItem("roadmap-checks");
+        localStorage.removeItem("roadmap-completed");
+        localStorage.removeItem("roadmap-chosen-path");
+        checks = {}; completed = []; chosenPath = null;
+        refreshLocks();
+        updateTopProgress();
+        updateTrackBadge();
+        if (activeCard !== null) renderStage(activeCard);
+    }
+}
+document.getElementById("resetBtn").addEventListener("click", resetProgress);
+
+const baseMilestones = [
+    {
+        year: "Milestone 01",
+        title: "The Current Crossroad",
+        artClass: "art-1",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>`,
+        desc: "Digital Forensics sits at the intersection of Computer Science, Cyber Law, and Corporate Governance. Your choices aren’t limited — this field opens doors to many different options. Milestone 1 is about exploring those options",
+        actions: [
+            "Determine if your high school certificate includes Pure Mathematics (Mathematical Literacy will block a direct Science transfer).",
+            "Maintain an academic average above 70% (goal) in your first year. This help builds a great profile for you.",
+        ]
+    },
+    {
+        year: "Milestone 02",
+        title: "Choose Your Track",
+        artClass: "art-2",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line></svg>`,
+        desc: "Take it slow — you don’t need to overthink this decision right now. Even if some pathways are closed and others are still open, don’t feel discouraged. Your undergraduate years are about building skills, exploring your interests, and seeing where your strengths take you. Choose what makes sense for you now, keep your options open, and remember that your path can always evolve along the way. Choose your path below:",
+        isChoiceCard: true
+    },
+    {
+        year: "Milestone 03",
+        title: "Undergraduate Execution",
+        artClass: "art-3",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line></svg>`,
+        desc: "Dynamic phase based on your selected track execution.",
+        isDynamic: true
+    },
+    {
+        year: "Milestone 04",
+        title: "Extracurricular Labs",
+        artClass: "art-4",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
+        desc: "Degrees provide academic theory, but cybersecurity demands operational exposure. You must build specific forensic habits outside standard university classes.",
+        actions: [
+            "Join Interactive Labs: Create accounts on TryHackMe or Hack The Box; actively complete targeted modules in Digital Forensics and Incident Response.",
+            "Learn Key Frameworks: Study file system metadata architecture, master raw network traffic packet parsing (Wireshark), and trace OS log files.",
+            "Acquire Baseline Certifications: Look into foundational professional badges like CompTIA Security+ or Junior Cybersecurity Analyst tracks."
+        ]
+    },
+    {
+        year: "Milestone 05",
+        title: "The Postgrad Bridge",
+        artClass: "art-5",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path></svg>`,
+        desc: "Entering the postgraduate domain at Wits. Depending on your undergraduate choices and career preferences, you will follow one of three alternate tracks.",
+        isPostgradMenu: true
+    },
+    {
+        year: "Milestone 06",
+        title: "Cybersecurity Specialisation",
+        artClass: "art-6",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`,
+        desc: "Dive into professional, high-tier research and laboratory exercises at Wits, exploring how theory applies to live target architectures.",
+        actions: [
+            "Advanced Forensic Tracking: Master hardware disk cloning, volatile memory analysis, and structural malware reverse-engineering.",
+            "Study South African Cyber Law: Formally study legal provisions like the Cybercrimes Act and POPIA (Protection of Personal Information Act) to learn how to handle digital evidence securely.",
+            "Research Thesis: Craft a dedicated research paper examining modern threat landscapes or unique data carving methods."
+        ]
+    },
+    {
+        year: "Milestone 07",
+        title: "The Professional Arena",
+        artClass: "art-7",
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>`,
+        desc: "Deploy into the industrial market space as a highly agile, interdisciplinary digital investigation specialist.",
+        actions: [
+            "Target Industries: Look for roles in Corporate Forensic Teams (e.g., big banks, auditing firms), specialized Advisory Consultancies, or state Intelligence Agencies.",
+            "Typical Daily Mandates: Recover intentionally deleted system files, analyze complex ransomware vectors, and formulate valid court evidence logs.",
+            "Leverage the Edge: Use your original Humanities/Arts design perspective to synthesize complex technical data charts into simple, flawless briefings for corporate executives."
+        ]
+    }
+];
+
+const belt = document.getElementById("belt");
+const beltWrapper = document.getElementById("beltWrapper");
+const infoPanel = document.getElementById("infoPanel");
+const panelContent = document.getElementById("panelContent");
+const closeButton = document.getElementById("closeButton");
+const backdrop = document.getElementById("backdrop");
+backdrop.addEventListener("click", () => closePanel());
+
+panelContent.addEventListener("scroll", () => {
+    if (panelContent.scrollTop > 40) closeButton.classList.add("hidden");
+    else closeButton.classList.remove("hidden");
+});
+
+const cards = baseMilestones.map((item, index) => {
+    const card = document.createElement("article");
+    card.className = "card";
+    card.dataset.index = index;
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `${item.title}, ${item.year}`);
+    card.innerHTML = `
+        <div class="card-art ${item.artClass}">${item.icon}</div>
+        <div class="lock-badge">${LOCK_SVG}</div>
+        <div class="card-content">
+            <div class="card-year">${item.year}</div>
+            <div class="card-title">${item.title}</div>
+        </div>`;
+    
+    card.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(index); }
+    });
+
+    belt.appendChild(card);
+    return card;
+});
+
+function refreshLocks() {
+    cards.forEach((card, i) => card.classList.toggle("locked", !isUnlocked(i)));
+}
+function updateTopProgress() {
+    const unlockedN = Math.min(baseMilestones.length, completed.filter(Boolean).length + 1);
+    document.getElementById("topProgress").textContent = `Milestone ${unlockedN} of ${baseMilestones.length} unlocked`;
+}
+refreshLocks();
+updateTopProgress();
+
+let position = 0, target = 0, dragging = false, lastX = 0, velocity = 0, activeCard = null;
+const cardWidth = 180, cardSpacing = 50, STEP = cardWidth + cardSpacing, CENTER = 3.9, CARD_COUNT = cards.length;
+
+function render() {
+    cards.forEach((card, index) => {
+        let relative = index - position - CENTER;
+        while (relative > CARD_COUNT / 2) relative -= CARD_COUNT;
+        while (relative < -CARD_COUNT / 2) relative += CARD_COUNT;
+        const distance = Math.abs(relative);
+        const x = relative * STEP;
+        const y = -relative * 16 + distance * 1.5;
+        const scale = .58 + Math.max(0, 1 - distance / 4.7) * .49;
+        const rotate = -7 + relative * 1.4;
+        const tilt = -12 + relative * 2;
+        const opacity = Math.max(0, 1 - Math.max(0, distance - 2) * .30);
+        const blur = Math.max(0, distance - 3.4) * 1.5;
+        const z = Math.round(100 - distance * 10);
+        card.style.transform = `translate3d(${x}px, ${y}px, ${Math.max(0, (4.5 - distance) * 85)}px) rotateZ(${rotate}deg) rotateY(${tilt}deg) scale(${scale})`;
+        card.style.opacity = opacity;
+        card.style.filter = `blur(${blur}px)`;
+        card.style.zIndex = z;
+    });
+}
+
+function animate() {
+    position += (target - position) * .14;
+    velocity *= .90;
+    if (Math.abs(target - position) < .0005) position = target;
+    render();
+    requestAnimationFrame(animate);
+}
+
+function renderStage(index) {
+    const item = baseMilestones[index];
+    let sectionsHtml = "";
+    let total = 0, checkedCount = 0;
+
+    if (item.isChoiceCard) {
+        sectionsHtml = `
+            <div class="panel-subtitle">Select your strategic target track below:</div>
+            <div class="choice-grid">
+                <button class="choice-card ${chosenPath === 'bsc' ? 'selected' : ''}" data-path="bsc">
+                    <h4>1. Science Path</h4>
+                    <p>Internal transfer to a BSc in Computer Science, leading to a BSc Honours in Cybersecurity. Requires pure maths in highschool.</p>
+                </button>
+                <button class="choice-card ${chosenPath === 'ba' ? 'selected' : ''}" data-path="ba">
+                    <h4>2. Interdisciplinary Path</h4>
+                    <p>Complete the BA in Digital Arts and build an extensive programming portfolio to enter the MSc in Cybersecurity via Recognition of Prior Learning (RPL) in Wits</p>
+                </button>
+                <button class="choice-card ${chosenPath === 'com' ? 'selected' : ''}" data-path="com">
+                    <h4>3. Coporate Path</h4>
+                    <p>Complete the BA and bridge into corporate cyber investigations via the MCom in Cybersecurity Management.</p>
+                </button>
+            </div>
+        `;
+    } 
+    else if (item.isDynamic) {
+        let actions = [];
+        if (chosenPath === 'bsc') {
+            item.title = "Executing Path 1: Faculty Swap";
+            item.desc = "The direct technical shift: Transition from the Faculty of Humanities over to the Faculty of Science to complete a traditional BSc in Computer Science.";
+            actions = [
+                "Consult School of Computer Science & Applied Mathematics (CSAM): Visit the Science Faculty office early to check credit exemptions and transfer protocols.",
+                "Address Mathematics Prerequisites: If eligible based on Matric marks, request to add standard Science-qualifying Math courses to your current syllabus immediately.",
+                "Maintain High Grades: Internal swaps at Wits are performance-based and highly competitive; aim for top marks across all modules."
+            ];
+        } else {
+            item.title = "Executing Hybrid Track (BA Pathways)";
+            item.desc = "The strategic baseline: Remain in BA Digital Arts, finish the 4-year degree completely, and shape your undergraduate choices intentionally toward technical competencies and cyber safety.";
+            actions = [
+                "Max Out Code Modules: Pay maximum attention to all software development and game-engine programming courses built into the BA.",
+                "Select Strategic Electives: Choose Media Studies or law modules that actively debate cyber ethics, privacy rules, and information governance.",
+                "Formulate a Portfolio: Archive all your programming projects cleanly to serve as technical evidence for prospective postgraduate admissions panels."
+            ];
+        }
+        
+        const itemsHtml = actions.map((point, iIdx) => {
+            const key = `action-${index}-${iIdx}`;
+            const isChecked = !!checks[key];
+            total++; if (isChecked) checkedCount++;
+            return `<li class="item ${isChecked ? "checked" : ""}" data-key="${key}" tabindex="0" role="checkbox" aria-checked="${isChecked}">
+                <span class="check"></span>
+                <span class="item-text">${point}</span>
+            </li>`;
+        }).join("");
+        sectionsHtml = `<ul class="panel-list">${itemsHtml}</ul>`;
+    }
+    else if (item.isPostgradMenu) {
+        sectionsHtml = `
+            <div style="display:grid; grid-template-columns:1fr; gap:16px; margin-top:10px;">
+                <div style="background:var(--btn-bg); border:1px solid var(--border); padding:20px; border-radius:14px;">
+                    <h4 style="margin:0 0 8px; font-size:16px; color:var(--text); font-family:Georgia,serif;">Track A: BSc Honours in Cybersecurity (Science Faculty)</h4>
+                    <p style="margin:0; font-size:14px; line-height:1.6; color:var(--sub);">Requires a completed BSc in Computer Science with a minimum 70% average and university-level Mathematics. This is the option for deep, code-level forensics, cryptography, and network engineering.</p>
+                </div>
+                <div style="background:var(--btn-bg); border:1px solid var(--border); padding:20px; border-radius:14px;">
+                    <h4 style="margin:0 0 8px; font-size:16px; color:var(--text); font-family:Georgia,serif;">Track B: MSc in Cybersecurity via RPL (Science Faculty)</h4>
+                    <p style="margin:0; font-size:14px; line-height:1.6; color:var(--sub);">For BA Graduates who apply via Recognition of Prior Learning (RPL). Requires a rigorous portfolio review where you must present your programming projects, code history, and extracurricular forensics labs to prove equivalent technical capability.</p>
+                </div>
+                <div style="background:var(--btn-bg); border:1px solid var(--border); padding:20px; border-radius:14px;">
+                    <h4 style="margin:0 0 8px; font-size:16px; color:var(--text); font-family:Georgia,serif;">Track C: MCom in Cybersecurity Management (Commerce Faculty)</h4>
+                    <p style="margin:0; font-size:14px; line-height:1.6; color:var(--sub);">Perfect for BA Graduates who want to focus on corporate forensics, cybercrimes, risk management, and legal governance. It requires an Honours equivalent degree and offers a path into cybersecurity leadership without forcing high-level calculus.</p>
+                </div>
+            </div>
+        `;
+    }
+    else if (item.actions) {
+        const itemsHtml = item.actions.map((point, iIdx) => {
+            const key = `action-${index}-${iIdx}`;
+            const isChecked = !!checks[key];
+            total++; if (isChecked) checkedCount++;
+            return `<li class="item ${isChecked ? "checked" : ""}" data-key="${key}" tabindex="0" role="checkbox" aria-checked="${isChecked}">
+                <span class="check"></span>
+                <span class="item-text">${point}</span>
+            </li>`;
+        }).join("");
+        sectionsHtml = `<ul class="panel-list">${itemsHtml}</ul>`;
+    }
+
+    const pct = total ? Math.round((checkedCount / total) * 100) : 0;
+    const isDone = !!completed[index];
+    const isLast = index === baseMilestones.length - 1;
+    const allChecked = item.isChoiceCard ? (chosenPath !== null) : (total === 0 || checkedCount === total);
+
+    panelContent.innerHTML = `
+        <div class="panel-year">${item.year}</div>
+        <div class="panel-badge">MILESTONE ${index + 1} OF ${baseMilestones.length}</div>
+        <h1 class="panel-title" id="panelTitle">${item.title}</h1>
+        <div class="panel-subtitle">${item.desc}</div>
+        
+        ${total > 0 ? `
+        <div class="progress-row">
+            <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="progress-label">${checkedCount}/${total} checked</div>
+        </div>
+        ` : ""}
+        
+        <div class="panel-section">
+            ${sectionsHtml}
+        </div>
+
+        <div class="stage-action">
+            ${isDone
+                ? `<span class="completed-badge">✓ Milestone complete</span>`
+                : `<button class="complete-btn" id="completeBtn" ${allChecked ? "" : "disabled"}>${allChecked ? (isLast ? "Mark complete & Close" : "Mark complete & unlock next →") : (item.isChoiceCard ? "Select a track above to continue" : "Check off every item to unlock")}</button>`}
+        </div>
+    `;
+
+    if (item.isChoiceCard) {
+        panelContent.querySelectorAll(".choice-card").forEach(card => {
+            card.addEventListener("click", () => {
+                chosenPath = card.dataset.path;
+                localStorage.setItem("roadmap-chosen-path", chosenPath);
+                updateTrackBadge();
+                renderStage(index);
+            });
+        });
+    }
+
+    panelContent.querySelectorAll(".item").forEach(li => {
+        const toggle = () => {
+            checks[li.dataset.key] = !checks[li.dataset.key];
+            saveChecks();
+            renderStage(index);
+        };
+        li.addEventListener("click", toggle);
+        li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    });
+
+    const btn = document.getElementById("completeBtn");
+    if (btn) {
+        btn.addEventListener("click", () => {
+            completed[index] = true;
+            saveCompleted();
+            refreshLocks();
+            updateTopProgress();
+            closePanel();
+            if (isLast) {
+                triggerCelebration();
+            } else {
+                target = Math.round(position) + 1;
+            }
+        });
+    }
+}
+
+function openCard(index) {
+    if (activeCard === index) return;
+    activeCard = index;
+
+    if (!isUnlocked(index)) {
+        const prev = baseMilestones[index - 1];
+        panelContent.innerHTML = `
+            <div class="locked-view">
+                <div class="lock-icon">${LOCK_SVG}</div>
+                <h2>${baseMilestones[index].title} is locked</h2>
+                <p>Complete "${prev.title}" first to unlock this stage.</p>
+                <button id="jumpPrev">View "${prev.title}"</button>
+            </div>`;
+        document.getElementById("jumpPrev").addEventListener("click", () => { activeCard = null; openCard(index - 1); });
+    } else {
+        renderStage(index);
+    }
+
+    panelContent.scrollTop = 0;
+    closeButton.classList.remove("hidden");
+    beltWrapper.classList.add("open");
+    backdrop.classList.add("open");
+    infoPanel.classList.add("open");
+    closeButton.focus();
+}
+
+function closePanel() {
+    activeCard = null;
+    infoPanel.classList.remove("open");
+    backdrop.classList.remove("open");
+    beltWrapper.classList.remove("open");
+}
+closeButton.addEventListener("click", closePanel);
+
+let startX = 0, moved = false;
+belt.addEventListener("pointerdown", event => {
+    if (activeCard !== null) return;
+    dragging = true; startX = event.clientX; lastX = event.clientX; velocity = 0; moved = false;
+    belt.classList.add("dragging");
+    belt.setPointerCapture(event.pointerId);
+});
+belt.addEventListener("pointermove", event => {
+    if (!dragging) return;
+    const dx = event.clientX - lastX;
+    lastX = event.clientX;
+    if (Math.abs(event.clientX - startX) > 4) moved = true;
+    const amount = dx / STEP;
+    target -= amount; velocity = amount;
+});
+function endDrag(event) {
+    if (!dragging) return;
+    dragging = false;
+    belt.classList.remove("dragging");
+    try { belt.releasePointerCapture(event.pointerId); } catch (e) {}
+
+    if (!moved && event.type === "pointerup") {
+        const el = document.elementFromPoint(event.clientX, event.clientY);
+        const cardEl = el && el.closest && el.closest(".card");
+        if (cardEl) openCard(Number(cardEl.dataset.index));
+        velocity = 0;
+        return;
+    }
+    target = Math.round(target - velocity * 3.0);
+}
+belt.addEventListener("pointerup", endDrag);
+belt.addEventListener("pointercancel", endDrag);
+
+window.addEventListener("wheel", event => {
+    if (activeCard !== null) return;
+    if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) target += event.deltaY / (STEP * 2.5);
+    else target += event.deltaX / (STEP * 2);
+}, { passive: true });
+
+window.addEventListener("keydown", event => {
+    if (activeCard !== null) { if (event.key === "Escape") closePanel(); return; }
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); target += 1; }
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); target -= 1; }
+});
+
+render();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
